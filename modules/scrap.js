@@ -12,9 +12,8 @@ const fieldConfigs = [
         { 
             field : "areaTotal",
             selector: 'body > div.main > div.s-d-l-m > div.s-d-l1 > div.s-d-ld > div.s-d-ld-i-main > div.s-d-ld-i3.f-d',
-            findWhereContentHas: 'm2',
-            removeStrings: ['<span>Área Total:</span>', 'm2'],
-            onlyNumbers: true
+            findWhereContentHas: { value: 'm2', tag : 'p'},
+            getStrBtw : { first: ': ', second: 'm2'}
         },
         { 
             field : "cidade",
@@ -26,12 +25,29 @@ const fieldConfigs = [
             selector: 'body > div.main > div.s-d-l-m > div.l-cab > ol > li:nth-child(9) > a > span'
         },
         { 
-            field : "primeiroLeilao",
-            selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d > p:nth-child(1)'
+            field : "primeiroLeilaoData",
+            selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d > p:nth-child(1)',
+            findWhereContentHas: { value:'1º Leilão'},
+            getStrBtw : { first: '1º Leilão:', second: 'às'}
         },
         { 
-            field : "segundoLeilao",
-            selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d > p:nth-child(2)'
+            field : "primeiroLeilaoValor",
+            selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d > p:nth-child(1)',
+            findWhereContentHas: { value:'1º Leilão'},
+            getStrBtw : { first: ' R$'}
+        },
+        { 
+            field : "segundoLeilaoData",
+            selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d > p:nth-child(2)',
+            findWhereContentHas: { value:'2º'},
+            getStrBtw : { first: '2º Leilão:', second: 'às'}
+        },
+        { 
+            field : "segundoLeilaoValor",
+            selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d > p:nth-child(2)',
+            findWhereContentHas: { value:'2º'},
+            getStrBtw : { first: ' R$'},
+            removeStrings: ['(* O 2º Leilão somente ocorrerá se não for vendido em 1º Leilão )']
         },
         { 
             field : "leiloeiro",
@@ -39,9 +55,51 @@ const fieldConfigs = [
         }
 ];
 
+const fieldConfigs2 = [
+    { 
+        field : "primeiroLeilaoData",
+        selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d',
+        findWhereContentHas: { value:'Data:'},
+        getStrBtw : { first: 'Data:', second: 'às'}
+    },
+    { 
+        field : "primeiroLeilaoValor",
+        selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d',
+        findWhereContentHas: { value:'Data:'},
+        getStrBtw : { first: ' R$', second: ',00'}
+    }
+];
+
+const fieldConfigs3 = [
+    { 
+        field : "primeiroLeilaoData",
+        selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d',
+        findWhereContentHas: { value:'1ª Praça:', tag: 'p'},
+        getStrBtw : { first: '1ª Praça:', second: 'às'}
+    },
+    { 
+        field : "primeiroLeilaoValor",
+        selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d',
+        findWhereContentHas: { value:'1ª Praça:', tag: 'p'},
+        getStrBtw : { first: ' R$'}
+    },
+    { 
+        field : "segundoLeilaoData",
+        selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d',
+        findWhereContentHas: { value:'2ª Praça:', tag: 'p'},
+        getStrBtw : { first: '2ª Praça:', second: 'às'}
+    },
+    { 
+        field : "segundoLeilaoValor",
+        selector: 'body > div.main > div.s-d-l-m > div.s-d-il > div.s-d-il-i-main.f-d',
+        findWhereContentHas: { value:'2ª Praça:', tag: 'p'},
+        getStrBtw : { first: ' R$'}
+    }
+];
+
 const scrapUrl = async (url) => {
 
-    await page.goto(url, {waitUntil: 'load', timeout: 0});
+    await page.goto(url, { timeout: 0});
 
     let bodyHTML = await page.evaluate(() =>  document.documentElement.outerHTML);
     const $ = cheerio.load(bodyHTML);
@@ -50,24 +108,49 @@ const scrapUrl = async (url) => {
 
     for(let field of fieldConfigs){
     
-        var elements = await $(field.selector);
+        var value = await sniff($, field);
+
+        if(!value){
+            let fallback = fieldConfigs2.find(f2 => f2.field == field.field);
+
+            if(fallback){
+                value = await sniff($, fallback);
+            }                
+
+            if(!value){
+                fallback = fieldConfigs3.find(f3 => f3.field == field.field);
+
+                if(fallback){
+                    value = await sniff($, fallback);
+                }
+            }
+        }
+
+        obj[field.field] = value;
+    }
+
+    return obj;
+}
+
+const sniff = async ($, field) => {
+
+    var elements = await $(field.selector);
 
         if(!elements || elements.length == 0){
-            obj[field.field] = '';
-            continue;
+            return '';
         }
 
         if(field.findWhereContentHas){
             
-            let ps = elements.find('p');
+            if(field.findWhereContentHas.tag)
+                elements = elements.find(field.findWhereContentHas.tag);
 
-            let elth = ps.toArray().find(e => $(e).text().includes(field.findWhereContentHas));
+            let elth = elements.toArray().find(e => $(e).text().includes(field.findWhereContentHas.value));
 
             if(elth){
                 elements = $(elth);
             }else{
-                obj[field.field] = '';
-                continue;
+                return '';
             }            
         }
 
@@ -88,10 +171,7 @@ const scrapUrl = async (url) => {
             value = getStringBetween(value, field.getStrBtw.first, field.getStrBtw.second);
         }
 
-        obj[field.field] = value;
-    }
-
-    return obj;
+        return  value;
 }
 
 const getElem = async (selector) => {
@@ -115,8 +195,8 @@ const scrapUrls = async (urls) => {
 
 const getStringBetween = (str, first, second) => {
     return  str.substring(
-        str.lastIndexOf(first) + 1, 
-        str.lastIndexOf(second)
+        str.indexOf(first) + first.length, 
+        second ? str.indexOf(second) : str.length
     );
 }
 

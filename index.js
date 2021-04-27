@@ -27,4 +27,4 @@ app.post('/api/process', async (req, res) => {
     return res.status(200).send();
 });
 
-app.listen({ port: 8000 });
+app.listen({ port: process.env.PORT || 8000 });
