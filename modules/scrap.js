@@ -180,7 +180,7 @@ const getElem = async (selector) => {
 
 const scrapUrls = async (urls) => {
 
-    browser = await pupe.launch({headless: true});
+    browser = await pupe.launch({headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox']});
     page = await browser.newPage();
 
     let csvLines = [];
